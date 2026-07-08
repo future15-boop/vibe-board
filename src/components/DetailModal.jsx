@@ -16,6 +16,7 @@ export default function DetailModal({ post, signal, onClose, onAddComment, onUpd
   const [name, setName] = useState(profile?.name || '')
   const [text, setText] = useState('')
   const [commenting, setCommenting] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   // ESC 로 닫기
   useEffect(() => {
@@ -25,6 +26,30 @@ export default function DetailModal({ post, signal, onClose, onAddComment, onUpd
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
+
+  // 열려 있는 동안 문서 제목을 글 제목으로 (브라우저 탭/일부 크롤러)
+  useEffect(() => {
+    const prev = document.title
+    document.title = `${post.title} — VIBE CODING`
+    return () => {
+      document.title = prev
+    }
+  }, [post.title])
+
+  async function share() {
+    const url = `${window.location.origin}/post/${post.id}`
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: post.title, url })
+      } else {
+        await navigator.clipboard.writeText(url)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      }
+    } catch {
+      /* 사용자가 취소 등 */
+    }
+  }
 
   // 댓글 로딩 (열릴 때 + 실시간 signal 변경 시)
   useEffect(() => {
@@ -87,6 +112,9 @@ export default function DetailModal({ post, signal, onClose, onAddComment, onUpd
                 <span>조회 {post.views.toLocaleString()}</span>
                 <span className="dot" />
                 <span>댓글 {post.replies}</span>
+                <button className="modal__share" onClick={share}>
+                  {copied ? '✓ 링크 복사됨' : '↗ 공유'}
+                </button>
               </div>
 
               {post.image_url && (

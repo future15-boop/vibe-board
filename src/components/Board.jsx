@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { CATEGORIES } from '../data'
 import { boardApi } from '../api/board'
 import { useBoard } from '../hooks/useBoard'
@@ -17,8 +18,15 @@ export default function Board() {
   const [sort, setSort] = useState('latest') // latest | views | replies
   const [page, setPage] = useState(1)
   const [writing, setWriting] = useState(false)
-  const [selectedId, setSelectedId] = useState(null)
   const viewedRef = useRef(new Set())
+
+  // 선택된 글은 URL(/post/:id)에서 파생 — 딥링크/뒤로가기 지원
+  const location = useLocation()
+  const navigate = useNavigate()
+  const routeMatch = location.pathname.match(/^\/post\/(\d+)/)
+  const selectedId = routeMatch ? Number(routeMatch[1]) : null
+  const openPost = (id) => navigate(`/post/${id}`)
+  const closeModal = () => navigate('/')
 
   const selectedPost = posts.find((p) => p.id === selectedId) || null
 
@@ -89,7 +97,7 @@ export default function Board() {
   async function handleDelete(id, password) {
     await boardApi.deletePost(id, password)
     await refresh({ silent: true })
-    setSelectedId(null)
+    closeModal()
   }
 
   async function handleAddComment(postId, data) {
@@ -170,7 +178,7 @@ export default function Board() {
         ) : paged.length > 0 ? (
           <div className="board__list">
             {paged.map((p) => (
-              <PostRow post={p} key={p.id} onOpen={() => setSelectedId(p.id)} />
+              <PostRow post={p} key={p.id} onOpen={() => openPost(p.id)} />
             ))}
           </div>
         ) : (
@@ -197,7 +205,7 @@ export default function Board() {
         <DetailModal
           post={selectedPost}
           signal={signal}
-          onClose={() => setSelectedId(null)}
+          onClose={closeModal}
           onAddComment={handleAddComment}
           onUpdate={handleUpdate}
           onDelete={handleDelete}
