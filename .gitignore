@@ -1,0 +1,18 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+
+# env — 실제 시크릿은 커밋 금지 (Vercel 환경변수로 관리). 예시 파일만 커밋.
+.env
+.env.*
+!.env.example
+
+# vercel
+.vercel
+
+# logs / os
+*.log
+.DS_Store
+Thumbs.db
