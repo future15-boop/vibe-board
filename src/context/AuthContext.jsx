@@ -1,6 +1,11 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
+// Google 로그인 UI on/off 스위치.
+// Supabase 대시보드에서 Google provider 설정을 마치면 true 로 바꾸면
+// 로그인 버튼이 다시 노출된다. (백엔드/하이브리드 로직은 항상 유지)
+export const AUTH_ENABLED = false
+
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
