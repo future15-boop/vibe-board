@@ -1,24 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { CATEGORIES } from '../data'
 import { boardApi } from '../api/board'
-import { useBoard } from '../hooks/useBoard'
+import { usePagedBoard } from '../hooks/usePagedBoard'
 import PostRow from './PostRow'
 import WriteForm from './WriteForm'
 import DetailModal from './DetailModal'
 import BannerSlider from './BannerSlider'
 
-const PAGE_SIZE = 6
-
 export default function Board() {
-  const { posts, loading, error, live, signal, refresh, mode } = useBoard()
-
   const [tab, setTab] = useState('all')
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState('latest') // latest | views | replies
-  const [page, setPage] = useState(1)
   const [writing, setWriting] = useState(false)
+
+  const { rows, count, loading, loadingMore, error, live, signal, hasMore, loadMore, reload, mode } =
+    usePagedBoard({ category: tab, query, sort })
+
   const viewedRef = useRef(new Set())
+  const sentinelRef = useRef(null)
 
   // 선택된 글은 URL(/post/:id)에서 파생 — 딥링크/뒤로가기 지원
   const location = useLocation()
@@ -28,81 +28,78 @@ export default function Board() {
   const openPost = (id) => navigate(`/post/${id}`)
   const closeModal = () => navigate('/')
 
-  const selectedPost = posts.find((p) => p.id === selectedId) || null
+  // 선택된 글: 로드된 목록에 있으면 사용, 없으면(딥링크) 단건 조회
+  const [detailPost, setDetailPost] = useState(null)
+  useEffect(() => {
+    if (!selectedId) {
+      setDetailPost(null)
+      return
+    }
+    const inList = rows.find((p) => p.id === selectedId)
+    if (inList) {
+      setDetailPost(inList)
+      return
+    }
+    let alive = true
+    boardApi.getPost(selectedId).then((p) => alive && setDetailPost(p)).catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [selectedId, rows])
 
   // 모달 열림 동안 배경 스크롤 잠금 + 최초 열람 시 조회수 증가
   useEffect(() => {
     document.body.style.overflow = selectedId ? 'hidden' : ''
     if (selectedId && !viewedRef.current.has(selectedId)) {
       viewedRef.current.add(selectedId)
-      boardApi.incrementViews(selectedId).then(() => refresh({ silent: true })).catch(() => {})
+      boardApi.incrementViews(selectedId).then(() => reload()).catch(() => {})
     }
     return () => {
       document.body.style.overflow = ''
     }
-  }, [selectedId, refresh])
+  }, [selectedId, reload])
 
-  // 카테고리별 개수
-  const counts = useMemo(() => {
-    const c = { all: posts.length }
-    for (const p of posts) c[p.category] = (c[p.category] || 0) + 1
-    return c
-  }, [posts])
-
-  // 필터 + 검색 + 정렬 (공지는 항상 상단 고정)
-  const filtered = useMemo(() => {
-    let list = posts.filter((p) => (tab === 'all' ? true : p.category === tab))
-    if (query.trim()) {
-      const q = query.trim().toLowerCase()
-      list = list.filter(
-        (p) =>
-          p.title.toLowerCase().includes(q) ||
-          p.author.toLowerCase().includes(q) ||
-          p.tags?.some((t) => t.toLowerCase().includes(q)),
-      )
-    }
-    const pinned = list.filter((p) => p.pinned)
-    const rest = list.filter((p) => !p.pinned)
-    rest.sort((a, b) => {
-      if (sort === 'views') return b.views - a.views
-      if (sort === 'replies') return b.replies - a.replies
-      return new Date(b.created_at) - new Date(a.created_at) // latest
-    })
-    return [...pinned, ...rest]
-  }, [posts, tab, query, sort])
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const paged = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  // 무한스크롤: 하단 센티넬이 보이면 다음 페이지 로드
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el || !hasMore) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) loadMore()
+      },
+      { rootMargin: '200px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [hasMore, loadMore])
 
   function changeTab(key) {
     setTab(key)
-    setPage(1)
   }
 
-  // WriteForm 이 await 하는 async 핸들러 (에러는 폼이 표시)
   async function handleCreate(data) {
     await boardApi.createPost(data)
-    await refresh({ silent: true })
     setWriting(false)
     setTab('all')
-    setPage(1)
+    setQuery('')
+    setSort('latest')
+    await reload()
   }
 
   async function handleUpdate(id, data, password) {
     await boardApi.updatePost(id, data, password)
-    await refresh({ silent: true })
+    await reload()
   }
 
   async function handleDelete(id, password) {
     await boardApi.deletePost(id, password)
-    await refresh({ silent: true })
     closeModal()
+    await reload()
   }
 
   async function handleAddComment(postId, data) {
     await boardApi.addComment(postId, data)
-    await refresh({ silent: true })
+    await reload()
   }
 
   return (
@@ -142,7 +139,7 @@ export default function Board() {
               onClick={() => changeTab(c.key)}
             >
               {c.label}
-              <span className="tab__count">{counts[c.key] || 0}</span>
+              {tab === c.key && !loading && <span className="tab__count">{count}</span>}
             </button>
           ))}
         </div>
@@ -153,10 +150,7 @@ export default function Board() {
             <span className="search__icon" aria-hidden>⌕</span>
             <input
               value={query}
-              onChange={(e) => {
-                setQuery(e.target.value)
-                setPage(1)
-              }}
+              onChange={(e) => setQuery(e.target.value)}
               placeholder="제목, 작성자, 태그로 검색"
             />
           </label>
@@ -172,38 +166,38 @@ export default function Board() {
           <div className="board__empty body-md">불러오는 중…</div>
         ) : error ? (
           <div className="board__empty body-md board__error">
-            데이터를 불러오지 못했습니다. <button className="text-link" onClick={() => refresh()}>다시 시도 →</button>
+            데이터를 불러오지 못했습니다. <button className="text-link" onClick={reload}>다시 시도 →</button>
             <div className="board__error-detail">{error}</div>
           </div>
-        ) : paged.length > 0 ? (
-          <div className="board__list">
-            {paged.map((p) => (
-              <PostRow post={p} key={p.id} onOpen={() => openPost(p.id)} />
-            ))}
-          </div>
+        ) : rows.length > 0 ? (
+          <>
+            <div className="board__list">
+              {rows.map((p) => (
+                <PostRow post={p} key={p.id} onOpen={() => openPost(p.id)} />
+              ))}
+            </div>
+
+            {/* 무한스크롤 센티넬 + 상태 */}
+            <div ref={sentinelRef} className="board__more">
+              {loadingMore ? (
+                <span className="body-sm">더 불러오는 중…</span>
+              ) : hasMore ? (
+                <button className="btn btn--outline btn--sm" onClick={loadMore}>더 보기</button>
+              ) : (
+                <span className="board__end">— 전체 {count}개 · 끝 —</span>
+              )}
+            </div>
+          </>
         ) : (
           <div className="board__empty body-md">
             {query.trim() ? '검색 결과가 없습니다.' : '아직 게시글이 없습니다. 첫 글을 남겨보세요!'}
           </div>
         )}
-
-        {/* 페이지네이션 */}
-        {!loading && !error && totalPages > 1 && (
-          <div className="pager">
-            <button disabled={safePage === 1} onClick={() => setPage(safePage - 1)}>‹</button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-              <button key={n} data-active={n === safePage} onClick={() => setPage(n)}>
-                {n}
-              </button>
-            ))}
-            <button disabled={safePage === totalPages} onClick={() => setPage(safePage + 1)}>›</button>
-          </div>
-        )}
       </div>
 
-      {selectedPost && (
+      {detailPost && (
         <DetailModal
-          post={selectedPost}
+          post={detailPost}
           signal={signal}
           onClose={closeModal}
           onAddComment={handleAddComment}

@@ -42,13 +42,39 @@ function unwrap({ data, error }) {
 export const boardApi = {
   MODE,
 
-  async listPosts() {
-    if (MODE === 'local') return localStore.listPosts()
-    const res = await supabase
-      .from('posts')
-      .select(POST_COLS)
-      .order('created_at', { ascending: false })
-    return unwrap(res)
+  // 서버사이드 필터 + 검색 + 정렬 + 페이지네이션
+  // returns { rows, count } — count 는 필터에 걸린 전체 개수
+  async listPosts({ category = 'all', query = '', sort = 'latest', page = 1, pageSize = 8 } = {}) {
+    if (MODE === 'local') return localStore.listPosts({ category, query, sort, page, pageSize })
+
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+    let q = supabase.from('posts').select(POST_COLS, { count: 'exact' })
+
+    if (category !== 'all') q = q.eq('category', category)
+
+    const s = query.trim().replace(/[,()%"{}*\\]/g, ' ').replace(/\s+/g, ' ').trim()
+    if (s) {
+      // 제목/작성자 부분검색(*=와일드카드) + (단일 토큰이면) 태그 정확일치
+      const ors = [`title.ilike.*${s}*`, `author.ilike.*${s}*`]
+      if (!s.includes(' ')) ors.push(`tags.cs.{${s}}`)
+      q = q.or(ors.join(','))
+    }
+
+    const col = sort === 'views' ? 'views' : sort === 'replies' ? 'replies' : 'created_at'
+    q = q.order('pinned', { ascending: false }).order(col, { ascending: false }).range(from, to)
+
+    const { data, count, error } = await q
+    if (error) throw new Error(error.message)
+    return { rows: data, count: count ?? data.length }
+  },
+
+  // 단일 글 조회 (딥링크로 열었을 때 목록에 없을 수 있음)
+  async getPost(id) {
+    if (MODE === 'local') return localStore.getPost(id)
+    const res = await supabase.from('posts').select(POST_COLS).eq('id', id).maybeSingle()
+    if (res.error) throw new Error(res.error.message)
+    return res.data
   },
 
   async listComments(postId) {

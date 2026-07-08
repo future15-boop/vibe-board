@@ -72,9 +72,33 @@ function strip(post) {
 const delay = (v) => new Promise((res) => setTimeout(() => res(v), 120))
 
 export const localStore = {
-  async listPosts() {
+  async listPosts({ category = 'all', query = '', sort = 'latest', page = 1, pageSize = 8 } = {}) {
     const db = read()
-    return delay(db.posts.map(strip))
+    let list = db.posts.map(strip)
+
+    if (category !== 'all') list = list.filter((p) => p.category === category)
+    const q = query.trim().toLowerCase()
+    if (q) {
+      list = list.filter(
+        (p) =>
+          p.title.toLowerCase().includes(q) ||
+          p.author.toLowerCase().includes(q) ||
+          p.tags?.some((t) => t.toLowerCase().includes(q)),
+      )
+    }
+
+    const pinned = list.filter((p) => p.pinned)
+    const rest = list.filter((p) => !p.pinned)
+    rest.sort((a, b) => {
+      if (sort === 'views') return b.views - a.views
+      if (sort === 'replies') return b.replies - a.replies
+      return new Date(b.created_at) - new Date(a.created_at)
+    })
+    const ordered = [...pinned, ...rest]
+    const count = ordered.length
+    const from = (page - 1) * pageSize
+    const rows = ordered.slice(from, from + pageSize)
+    return delay({ rows, count })
   },
 
   async createPost({ category, title, author, content, tags, imageDataUrl, password }) {
@@ -134,6 +158,12 @@ export const localStore = {
       write(db)
     }
     return delay()
+  },
+
+  async getPost(id) {
+    const db = read()
+    const p = db.posts.find((x) => x.id === id)
+    return delay(p ? strip(p) : null)
   },
 
   async listComments(postId) {
