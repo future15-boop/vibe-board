@@ -9,7 +9,7 @@ import { localStore } from './localStore'
 export const MODE = isSupabaseConfigured ? 'supabase' : 'local'
 
 const POST_COLS =
-  'id,category,title,author,content,tags,image_url,views,replies,pinned,created_at'
+  'id,category,title,author,content,tags,image_url,views,replies,pinned,created_at,user_id'
 
 // File → data URL (localStorage 폴백에서 이미지 저장용)
 function fileToDataUrl(file) {

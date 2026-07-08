@@ -1,14 +1,22 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CATEGORIES } from '../data'
 import { validateImage } from '../utils'
+import { useAuth } from '../context/AuthContext'
 
 export default function WriteForm({ onSubmit, onCancel }) {
+  const { profile } = useAuth()
+  const loggedIn = Boolean(profile)
   const [category, setCategory] = useState('qna')
   const [title, setTitle] = useState('')
-  const [author, setAuthor] = useState('')
+  const [author, setAuthor] = useState(profile?.name || '')
   const [tags, setTags] = useState('')
   const [content, setContent] = useState('')
   const [password, setPassword] = useState('')
+
+  // 로그인 사용자는 작성자명을 프로필 이름으로 프리필
+  useEffect(() => {
+    if (profile?.name) setAuthor((a) => a || profile.name)
+  }, [profile])
   const [imageFile, setImageFile] = useState(null)
   const [preview, setPreview] = useState(null)
   const [error, setError] = useState('')
@@ -43,8 +51,13 @@ export default function WriteForm({ onSubmit, onCancel }) {
       setError('제목과 작성자는 필수입니다.')
       return
     }
-    if (password.length < 4) {
+    // 비로그인: 비밀번호 필수 / 로그인: 선택(입력 시 4자+)
+    if (!loggedIn && password.length < 4) {
       setError('비밀번호는 4자 이상 입력하세요. (수정/삭제 시 필요)')
+      return
+    }
+    if (loggedIn && password.length > 0 && password.length < 4) {
+      setError('비밀번호를 쓰려면 4자 이상 입력하세요. (비우면 계정 소유로 관리됩니다)')
       return
     }
     setError('')
@@ -82,12 +95,12 @@ export default function WriteForm({ onSubmit, onCancel }) {
           <input value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="닉네임" />
         </div>
         <div className="field" style={{ flex: '0 0 200px' }}>
-          <label className="label-up">비밀번호</label>
+          <label className="label-up">비밀번호{loggedIn ? ' (선택)' : ''}</label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="수정/삭제용 (4자+)"
+            placeholder={loggedIn ? '비우면 계정으로 관리' : '수정/삭제용 (4자+)'}
             autoComplete="new-password"
           />
         </div>

@@ -219,6 +219,25 @@ a{color:inherit;text-decoration:none;}
 .comment-form__name:focus,.comment-form__text:focus{border-color:var(--c-on-dark);}
 
 /* ============================================================
+   Auth (top-nav login / profile)
+   ============================================================ */
+.authbox{display:flex;align-items:center;gap:var(--s-md);}
+.authbox__user{display:flex;align-items:center;gap:var(--s-xs);}
+.authbox__avatar{width:28px;height:28px;border-radius:var(--r-full);object-fit:cover;border:1px solid var(--c-hairline);}
+.authbox__name{font-size:14px;font-weight:300;letter-spacing:.5px;color:var(--c-body-strong);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.authbox__link{background:none;border:none;color:var(--c-body-strong);font-size:14px;letter-spacing:.5px;
+  display:inline-flex;align-items:center;gap:8px;padding:4px 0;transition:.2s ease;}
+.authbox__link:hover{color:var(--c-on-dark);}
+.authbox__g{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;
+  border:1px solid var(--c-hairline);border-radius:var(--r-full);font-weight:700;font-size:12px;color:var(--c-on-dark);}
+
+/* owner badge / edit note */
+.modal__owner{font-weight:700;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--c-m-blue-dark);border:1px solid var(--c-m-blue-dark);padding:4px 10px;align-self:center;margin-right:auto;}
+.edit-owner-note{display:flex;align-items:center;height:48px;padding:0 var(--s-md);
+  background:var(--c-surface-soft);border:1px solid var(--c-hairline-strong);color:var(--c-m-blue-dark);font-size:13px;font-weight:300;}
+
+/* ============================================================
    Board status (mode badge + realtime indicator)
    ============================================================ */
 .board__status{display:flex;align-items:center;gap:var(--s-sm);margin-top:var(--s-sm);}

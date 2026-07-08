@@ -1,4 +1,8 @@
+import { useAuth } from '../context/AuthContext'
+
 export default function TopNav() {
+  const { profile, signInWithGoogle, signOut } = useAuth()
+
   return (
     <header className="nav">
       <div className="wrap nav__inner">
@@ -16,7 +20,19 @@ export default function TopNav() {
           </ul>
         </nav>
         <div className="nav__right">
-          <a href="#" className="body-sm" style={{ letterSpacing: '.5px' }}>로그인</a>
+          {profile ? (
+            <div className="authbox">
+              <span className="authbox__user">
+                {profile.avatar && <img className="authbox__avatar" src={profile.avatar} alt="" />}
+                <span className="authbox__name">{profile.name}</span>
+              </span>
+              <button className="authbox__link" onClick={signOut}>로그아웃</button>
+            </div>
+          ) : (
+            <button className="authbox__link" onClick={signInWithGoogle}>
+              <span className="authbox__g" aria-hidden>G</span> Google 로그인
+            </button>
+          )}
           <a href="#apply" className="btn btn--light btn--sm">수강신청</a>
           <button className="nav__burger" aria-label="Menu">☰</button>
         </div>

@@ -2,15 +2,18 @@ import { useEffect, useRef, useState } from 'react'
 import { CATEGORIES, CATEGORY_LABEL, contentFor } from '../data'
 import { boardApi } from '../api/board'
 import { formatDate, validateImage } from '../utils'
+import { useAuth } from '../context/AuthContext'
 
 export default function DetailModal({ post, signal, onClose, onAddComment, onUpdate, onDelete }) {
+  const { profile } = useAuth()
   const isNotice = post.category === 'notice'
+  const isOwner = Boolean(profile && post.user_id && post.user_id === profile.id)
   const [mode, setMode] = useState('view') // view | edit | delete
 
   // 댓글
   const [comments, setComments] = useState([])
   const [loadingComments, setLoadingComments] = useState(true)
-  const [name, setName] = useState('')
+  const [name, setName] = useState(profile?.name || '')
   const [text, setText] = useState('')
   const [commenting, setCommenting] = useState(false)
 
@@ -62,6 +65,7 @@ export default function DetailModal({ post, signal, onClose, onAddComment, onUpd
           {mode === 'edit' ? (
             <EditForm
               post={post}
+              isOwner={isOwner}
               onCancel={() => setMode('view')}
               onSave={async (data, password) => {
                 await onUpdate(post.id, data, password)
@@ -104,6 +108,7 @@ export default function DetailModal({ post, signal, onClose, onAddComment, onUpd
               {/* 수정/삭제 액션 (공지 제외) */}
               {!isNotice && mode === 'view' && (
                 <div className="modal__actions">
+                  {isOwner && <span className="modal__owner">내 글</span>}
                   <button className="btn btn--outline btn--sm" onClick={() => setMode('edit')}>수정</button>
                   <button className="btn btn--outline btn--sm modal__danger" onClick={() => setMode('delete')}>삭제</button>
                 </div>
@@ -111,6 +116,7 @@ export default function DetailModal({ post, signal, onClose, onAddComment, onUpd
 
               {mode === 'delete' && (
                 <DeleteConfirm
+                  isOwner={isOwner}
                   onCancel={() => setMode('view')}
                   onConfirm={(password) => onDelete(post.id, password)}
                 />
@@ -165,22 +171,22 @@ export default function DetailModal({ post, signal, onClose, onAddComment, onUpd
   )
 }
 
-// ---- 삭제 확인 (비밀번호) ----
-function DeleteConfirm({ onCancel, onConfirm }) {
+// ---- 삭제 확인 (소유자면 비번 불필요) ----
+function DeleteConfirm({ isOwner, onCancel, onConfirm }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
   async function confirm() {
     if (busy) return
-    if (!password) {
+    if (!isOwner && !password) {
       setError('비밀번호를 입력하세요.')
       return
     }
     setBusy(true)
     setError('')
     try {
-      await onConfirm(password)
+      await onConfirm(isOwner ? '' : password)
     } catch (e) {
       setError(e.message || '삭제에 실패했습니다.')
       setBusy(false)
@@ -189,16 +195,20 @@ function DeleteConfirm({ onCancel, onConfirm }) {
 
   return (
     <div className="confirm">
-      <p className="confirm__msg">정말 삭제할까요? 작성 시 입력한 비밀번호를 입력하세요.</p>
+      <p className="confirm__msg">
+        {isOwner ? '정말 삭제할까요? 되돌릴 수 없습니다.' : '정말 삭제할까요? 작성 시 입력한 비밀번호를 입력하세요.'}
+      </p>
       <div className="confirm__row">
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="비밀번호"
-          autoComplete="off"
-          onKeyDown={(e) => e.key === 'Enter' && confirm()}
-        />
+        {!isOwner && (
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="비밀번호"
+            autoComplete="off"
+            onKeyDown={(e) => e.key === 'Enter' && confirm()}
+          />
+        )}
         <button className="btn btn--light btn--sm modal__danger" onClick={confirm} disabled={busy}>
           {busy ? '삭제 중…' : '삭제 확정'}
         </button>
@@ -210,7 +220,7 @@ function DeleteConfirm({ onCancel, onConfirm }) {
 }
 
 // ---- 수정 폼 ----
-function EditForm({ post, onCancel, onSave }) {
+function EditForm({ post, isOwner, onCancel, onSave }) {
   const writable = CATEGORIES.filter((c) => c.key !== 'all' && c.key !== 'notice')
   const [category, setCategory] = useState(post.category)
   const [title, setTitle] = useState(post.title)
@@ -246,7 +256,7 @@ function EditForm({ post, onCancel, onSave }) {
     e.preventDefault()
     if (busy) return
     if (!title.trim()) return setError('제목을 입력하세요.')
-    if (!password) return setError('수정하려면 비밀번호를 입력하세요.')
+    if (!isOwner && !password) return setError('수정하려면 비밀번호를 입력하세요.')
     setBusy(true)
     setError('')
     try {
@@ -260,7 +270,7 @@ function EditForm({ post, onCancel, onSave }) {
           removeImage,
           currentImageUrl: post.image_url || null,
         },
-        password,
+        isOwner ? '' : password,
       )
     } catch (err) {
       setError(err.message || '수정에 실패했습니다.')
@@ -280,16 +290,23 @@ function EditForm({ post, onCancel, onSave }) {
             ))}
           </select>
         </div>
-        <div className="field" style={{ flex: '0 0 200px' }}>
-          <label className="label-up">비밀번호</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="작성 시 비밀번호"
-            autoComplete="off"
-          />
-        </div>
+        {isOwner ? (
+          <div className="field" style={{ flex: '0 0 200px' }}>
+            <label className="label-up">권한</label>
+            <div className="edit-owner-note">내 글 — 비밀번호 없이 수정</div>
+          </div>
+        ) : (
+          <div className="field" style={{ flex: '0 0 200px' }}>
+            <label className="label-up">비밀번호</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="작성 시 비밀번호"
+              autoComplete="off"
+            />
+          </div>
+        )}
       </div>
       <div className="writer__row">
         <div className="field">
