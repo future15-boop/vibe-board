@@ -53,8 +53,13 @@ npm run dev
 | `npm run build` | 프로덕션 빌드 (`dist/`) |
 | `npm run preview` | 빌드 결과 미리보기 |
 
-## 배포
+## 배포 (Vercel + GitHub 자동 배포)
 
-`dist/`는 정적 파일이므로 Vercel / Netlify / Cloudflare Pages 등에 그대로 올리면 됩니다.
-빌드 환경변수에 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`를 등록하세요.
-백엔드는 Supabase가 서버리스로 처리하므로 별도 서버 운영이 필요 없습니다.
+이 저장소는 Vercel 프로젝트(`future15-boops-projects/vibe-board`)와 연결되어 있어,
+**`main` 브랜치에 push하면 자동으로 프로덕션 배포**됩니다 (CI/CD).
+
+- 프로덕션 URL: https://vibe-board-jade.vercel.app
+- 빌드 환경변수(`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`)는 Vercel 프로젝트에 등록됨
+- 백엔드는 Supabase가 서버리스로 처리하므로 별도 서버 운영 불필요
+
+로컬에서 수동 배포도 가능: `vercel --prod`
